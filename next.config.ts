@@ -1,8 +1,12 @@
 import type { NextConfig } from 'next';
+import path from 'node:path';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pin the trace root to this repo. A stray lockfile in a parent directory
+  // otherwise makes the build trace the wrong tree and bloat the deployment.
+  outputFileTracingRoot: path.join(__dirname),
   async headers() {
     return [
       {
