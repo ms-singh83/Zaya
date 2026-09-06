@@ -1,8 +1,16 @@
 -- M1 — Workspace, auth, tenancy baseline
 -- docs/12-DATABASE.md §1 (enums), §2 workspaces/users, §3 RLS. docs/07-EXECUTION-PLAN.md M1.
 -- Authored by ARCHITECTURE (Dwight), not yet applied: Supabase project credentials are pending
--- from the founder (docs/07 "Blocked-on-founder register"). SECURITY (Creed) must review the
--- RLS design and the `handle_new_user` trigger before this is applied to any project.
+-- from the founder (docs/07 "Blocked-on-founder register").
+--
+-- SECURITY (Creed) reviewed the original version of this migration (commit 543609a) and returned
+-- REQUEST CHANGES: the RLS design itself (recursion fix, SECURITY DEFINER safety, no client
+-- insert path) was verified sound; four additive fixes were required and are folded in below —
+-- §6a (column-level lockdown on the two Razorpay secret columns), the `full_name_input` bound and
+-- sanitize in §8, the non-null-email comment on `users.email`, and this migration is not
+-- mergeable/usable until the cross-tenant RLS test suite in `supabase/tests/rls/` (authored,
+-- pending first execution against a live Supabase project) passes. See
+-- docs/handoffs/M1-architecture-handoff.md for the original review request.
 --
 -- Design decision flagged for SECURITY review: docs/12 §3 gives one generic RLS policy shape
 -- for every tenant table, `workspace_id = (select workspace_id from users where id = auth.uid())`.
@@ -103,6 +111,10 @@ create table public.users (
   id            uuid primary key references auth.users(id) on delete cascade,
   workspace_id  uuid not null references public.workspaces(id) on delete cascade,
   email         text not null,
+  -- Assumes Supabase Auth always yields a non-null `auth.users.email` (true today: docs/15
+  -- §2 lists email/Google as the only Agency auth methods). Revisit this NOT NULL, and the
+  -- `handle_new_user` insert below that populates it from `new.email` unguarded, if a
+  -- phone-only auth method is ever added (Creed review FIX 4, informational only).
   full_name     text,
   role          user_role not null default 'owner',
   last_seen_at  timestamptz,
@@ -163,6 +175,29 @@ create policy workspaces_tenant_update on public.workspaces
   using  (id = app_private.current_workspace_id())
   with check (id = app_private.current_workspace_id());
 
+-- ── 6a. Column-level lockdown — Razorpay secrets (docs/15-SECURITY.md §6, Creed review FIX 2) ──
+-- RLS makes the *row* readable/writable to the owning Workspace, which is correct: the Agency
+-- needs to see `razorpay_key_id` and everything else on its own row. But the two encrypted
+-- secret columns must never be selectable or updatable by a browser client even for its own
+-- Workspace — only a server process using the `service_role` key (which bypasses RLS and table
+-- ACLs entirely) may touch them. `anon` and `authenticated` get their baseline table-level
+-- SELECT/UPDATE privileges from Supabase's project-wide default privileges (granted outside this
+-- migration, at project provisioning, to every table in `public`); this narrows those two roles
+-- at the column level on top of the row-level policy above, so even a correctly-scoped,
+-- correctly-authenticated request can never read or write the raw secret values through
+-- PostgREST. No corresponding GRANT is needed for `service_role`: it already holds full table
+-- privileges independent of these column-level ACLs.
+revoke select (razorpay_key_secret_encrypted, razorpay_webhook_secret_encrypted),
+       update (razorpay_key_secret_encrypted, razorpay_webhook_secret_encrypted)
+  on public.workspaces from authenticated, anon;
+
+comment on column public.workspaces.razorpay_key_secret_encrypted is
+  'Encrypted at rest. SELECT/UPDATE revoked from anon and authenticated (see migration §6a) — '
+  'readable/writable only by service_role. Never returned by any API (docs/15-SECURITY.md §6).';
+comment on column public.workspaces.razorpay_webhook_secret_encrypted is
+  'Encrypted at rest. SELECT/UPDATE revoked from anon and authenticated (see migration §6a) — '
+  'readable/writable only by service_role. Never returned by any API (docs/15-SECURITY.md §6).';
+
 -- ── 7. RLS — users ───────────────────────────────────────────────────────────────────────
 -- Own-row only. Sufficient for V1 (one owner per Workspace, no member rows to look up). No
 -- INSERT policy for `authenticated`: a `users` row is created only by `handle_new_user`. No
@@ -191,13 +226,21 @@ set search_path = public
 as $$
 declare
   new_workspace_id uuid;
+  -- raw_user_meta_data is client-controlled at signup (Supabase Auth accepts arbitrary metadata
+  -- from the signup call), and `workspaces.name` seeded from it here is Client-visible (Agency
+  -- branding on invoices and the Magic-link view), so treat it as untrusted input: trim, drop it
+  -- if it's empty after trimming, and cap it at the same 200-char max the workspace PATCH
+  -- contract enforces (lib/contracts/workspace.ts) so a signup can't seed an unbounded value
+  -- into either `workspaces.name` or `users.full_name` ahead of any application-layer
+  -- validation (Creed review FIX 3).
+  full_name_input text := nullif(trim(new.raw_user_meta_data ->> 'full_name'), '');
 begin
   insert into public.workspaces (name)
-  values (coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)))
+  values (left(coalesce(full_name_input, split_part(new.email, '@', 1)), 200))
   returning id into new_workspace_id;
 
   insert into public.users (id, workspace_id, email, full_name, role)
-  values (new.id, new_workspace_id, new.email, new.raw_user_meta_data ->> 'full_name', 'owner');
+  values (new.id, new_workspace_id, new.email, left(full_name_input, 200), 'owner');
 
   return new;
 end;
