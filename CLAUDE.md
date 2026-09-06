@@ -2,1612 +2,961 @@
 
 India-first Work → Cash platform for small agencies.
 
-**One line:** the moment a client approves a deliverable, the GST invoice sends itself with a payment link, and reminders escalate until the money lands.
+One line: the moment a client approves a deliverable, the GST invoice sends itself with a payment link, and reminders escalate until the money lands.
 
-**Customer-facing pitch:** “See where every rupee is stuck, and stop chasing it manually.”
+Customer-facing pitch: "See where every rupee is stuck, and stop chasing it manually."
 
-**Never use “OS” or “portal” in user-facing text.**
+NEVER use "OS" or "portal" in any user-facing text.
 
 ---
 
-## 1. CURRENT REPOSITORY STATE
+## 1. PROJECT SOURCE OF TRUTH
 
-This repository starts with documentation only:
+Zaya is developed using Munder Difflin with Michael acting as the runtime-level
+manager and the Zaya ORCHESTRATOR acting as the project's coordination
+authority.
 
-* `CLAUDE.md`
-* `docs/planning/05-MVP-PRD.md`
+Read these files according to their purpose:
 
-No application code exists.
+### Project rules
 
-`docs/planning/05-MVP-PRD.md` is the **canonical MVP specification**. Every agent must read it completely before making product, architecture, UX, schema, API, or implementation decisions.
+- `CLAUDE.md` — repository-wide engineering and product rules
+- `MUNDER-DIFFLIN.md` — Munder Difflin operating model and agent coordination
 
-Agents must create all other required documentation and application files as specified below.
+### Product specification
+
+- `docs/planning/05-MVP-PRD.md` — canonical V1.0 MVP specification
+
+### Product and technical documentation
+
+- `docs/00-PRODUCT-VISION.md`
+- `docs/02-ICP-AND-PERSONAS.md`
+- `docs/06-PRODUCT-ROADMAP.md`
+- `docs/08-USER-FLOWS.md`
+- `docs/09-UX-UI-SPECIFICATION.md`
+- `docs/10-ARCHITECTURE.md`
+- `docs/12-DATABASE.md`
+- `docs/13-API-SPECIFICATION.md`
+- `docs/15-SECURITY.md`
+- `docs/16-TESTING-STRATEGY.md`
+- `docs/17-DEPLOYMENT.md`
+
+### Agent role definitions
+
+- `agents/ORCHESTRATOR.md`
+- `agents/PRODUCT.md`
+- `agents/ARCHITECTURE.md`
+- `agents/FRONTEND.md`
+- `agents/BACKEND.md`
+- `agents/QA.md`
+- `agents/SECURITY.md`
+- `agents/DEVOPS.md`
+- `agents/DOCUMENTATION.md`
+- `agents/REVIEW.md`
+
+The PRD defines what V1.0 must do.
+
+This file defines repository-wide rules and technical constraints.
+
+`MUNDER-DIFFLIN.md` defines how the agent organization operates.
+
+`agents/*.md` defines specialist responsibilities.
+
+`docs/*.md` defines detailed product and technical specifications.
+
+No lower-level file may silently override a higher-level rule.
 
 ---
 
 ## 2. PRODUCT IN 60 SECONDS
 
-Zaya serves exactly **two end-user types in V1**, on two separate surfaces.
+Zaya serves exactly TWO end users in V1, on two different surfaces.
 
-### 2.1 Agency
+### User 1 — AGENCY
 
 The paying customer.
 
 Target:
 
-* 2–15 person Indian agencies
-* social media
-* content
-* influencer
-* creative
-* digital
-* video
-* web
+2–15 person Indian agencies, including:
 
-The Agency gets the authenticated application:
+- social media
+- content
+- influencer
+- creative
+- digital
+- video
+- web
 
-* Dashboard
-* Clients
-* Projects
-* Deliverables
-* Invoices
-* Payments
-* Reminders
-* Money Pipeline
-* Audit timelines
+They log in and use the full Agency application:
 
-**Agency job-to-be-done:**
+- dashboard
+- clients
+- deliverables
+- invoices
+- payments
+- reminders
+- Money Pipeline
 
-> Get paid faster with less awkward chasing, and have proof when clients dispute.
+Their job-to-be-done:
 
-### 2.2 Client
+"Get paid faster with less awkward chasing, and have proof when clients
+dispute."
 
-The Agency's customer.
+### User 2 — CLIENT
 
-The Client:
+The agency's customer.
 
-* never logs in
-* never creates an account
-* never installs anything
-* never gets a password
-* never receives an Agency application account
+The Client NEVER:
 
-The Client receives a WhatsApp or email notification containing a signed, expiring, revocable, client-scoped magic link.
+- logs in
+- creates an account
+- creates a password
+- installs anything
 
-The magic-link experience is a mobile-first web surface where the Client can only:
+This is a hard architectural law.
 
-1. View work
-2. Approve
-3. Request changes
-4. View invoice
-5. Pay by UPI/card
-6. View bank-transfer instructions
+The Client receives a WhatsApp or email message containing a signed magic
+link.
 
-**Hard architectural law:**
+The link opens a branded, mobile-first web experience.
 
-> If a design requires the Client to create an account or log in, the design is wrong and must be rejected.
+The Client can only:
+
+- view work
+- Approve
+- Request changes
+- view invoice
+- Pay by UPI/card
+- view bank-transfer instructions
+
+If any design requires the Client to create an account or login, that design
+is wrong.
+
+Delete it.
 
 ---
 
-## 3. CORE PRODUCT MODEL
+## 3. CANONICAL PRODUCT STATE MACHINE
 
-The product is organized around one state machine per Deliverable:
+The primary product workflow is:
 
-```text
 draft
-  → sent
-  → viewed
-  → changes_requested
-  → approved
-  → invoiced
-  → reminded
-  → paid / overdue
-```
+→ sent
+→ viewed
+→ changes_requested
+→ approved
+→ invoiced
+→ reminded
+→ paid / overdue
 
-Not every Deliverable must pass through every state.
-
-Every state transition creates an **append-only event**.
+Every meaningful transition must be represented by an append-only event.
 
 The event log is the audit trail.
 
 Example:
 
-```text
-Approved
-18 Aug, 4:12 PM
-Version 3
-Approved by Rahul
-```
+"Approved — 18 Aug, 4:12 PM — Version 3"
 
-The audit trail is a core product experience, not merely an internal technical log.
+The audit trail is a core product value.
 
----
+Do not create contradictory state representations between:
 
-## 4. CORE WEDGE
-
-Zaya is not plain invoicing software and not plain reminder software.
-
-The core workflow is:
-
-```text
-Deliverable sent
-      ↓
-Client views
-      ↓
-Client approves
-      ↓
-GST invoice generated
-      ↓
-Payment request sent
-      ↓
-Reminder ladder
-      ↓
-Payment recorded
-      ↓
-Pipeline updated
-```
-
-The Money Pipeline must distinguish at minimum:
-
-* Approval pending
-* Invoiced
-* Overdue
-* Paid
-
-The product must also distinguish:
-
-* money waiting on approval
-* money waiting on payment
-
-**Important hypothesis rule:**
-
-> “Approval delay causes late payment” is a product hypothesis.
-
-It must never be presented as an established fact in:
-
-* code comments
-* product copy
-* documentation
-* analytics labels
-* marketing claims
-* acceptance criteria
-
-If founder validation contradicts this hypothesis, the Orchestrator must pause affected work and request an explicit scope decision.
+- database
+- backend
+- frontend
+- notifications
+- payment state
 
 ---
 
-# 5. HARD RULES
+## 4. HARD PRODUCT RULES
 
-These rules apply to every agent and every milestone.
+These rules apply to every implementation.
 
-### Rule 1 — No Client Login
+### 4.1 Client authentication
 
-Client authentication is magic-link-only.
+CLIENT NEVER GETS A LOGIN.
 
-Magic links must be:
+Magic links only:
 
-* signed
-* expiring
-* single-client-scoped
-* revocable
-* single-purpose where appropriate
-* rate-limited
-* non-enumerable
-* invalidated according to documented token lifecycle rules
+- signed
+- expiring
+- single-client-scoped
+- revocable
 
-### Rule 2 — India First
+Never create a Client authentication system.
 
-Invoices must support:
+Never create:
 
-* GSTIN
-* HSN/SAC
-* place of supply
-* CGST
-* SGST
-* IGST
-* sequential invoice numbering per financial year
-* correct taxable value
-* GST totals
-* invoice totals
+- Client passwords
+- Client signup
+- Client accounts
+- Client workspaces
+- Client login pages
 
-Payments must support:
+---
 
-* Razorpay UPI/card payment
-* NEFT
-* RTGS
-* manual bank-transfer recording
-* TDS deductions
-* gross amount
-* TDS amount
-* net amount received
+### 4.2 Approval hypothesis
 
-### Rule 3 — WhatsApp First
+"Approval delay causes late payment" is a HYPOTHESIS.
 
-Every notification path must support:
+Never state this as an established fact in:
 
-1. WhatsApp
-2. Email fallback
+- code
+- comments
+- documentation
+- user-facing copy
+- marketing copy
+- commit messages
 
-WhatsApp templates include:
+If founder validation falsifies this hypothesis, dependent product work must
+pause and the founder must decide what changes.
 
-* `deliverable_ready`
-* `approval_confirmed`
-* `invoice`
-* `reminder_gentle`
-* `reminder_firm`
-* `reminder_final`
-* `payment_received`
+---
 
-If WhatsApp template approval is unavailable at launch, the system must degrade cleanly to email-only.
+### 4.3 MVP scope
 
-### Rule 4 — No Unapproved Scope
+The PRD exclusions are hard walls.
 
-The following are explicitly excluded from V1:
+V1.0 does NOT include:
 
-* CRM
-* project management
-* proposals
-* time tracking
-* accounting
-* payroll
-* team chat
-* AI chatbot
-* e-invoicing / IRN
-* multi-currency
-* native mobile applications
-* third-party API
+- CRM
+- project management
+- proposals
+- e-sign
+- time tracking
+- accounting
+- payroll
+- team chat
+- AI chatbot
+- integration catalogue
+- e-invoicing / IRN
+- multi-currency
+- native mobile apps
+- third-party API
 
-“Nice to have” is not a valid reason to add functionality.
+"Nice to have" is not a sufficient reason to build something.
 
-Any feature outside the PRD requires an explicit scope decision recorded in:
+No feature beyond the PRD may be implemented without an explicit scope
+decision recorded in:
 
-`docs/06-PRODUCT-ROADMAP.md`
+`docs/06-PRODUCT-ROADMAP.md §5`
 
-### Rule 5 — Copy
+---
+
+### 4.4 India-first
+
+V1.0 must support:
+
+- GST-correct invoices
+- GSTIN
+- HSN/SAC
+- CGST/SGST/IGST based on place of supply
+- sequential invoice numbering per financial year
+- UPI through Razorpay
+- manual bank transfer
+- TDS-adjusted payment recording
+- WhatsApp-first notifications
+- email fallback
+
+Manual bank payments are first-class.
+
+They are not an edge case.
+
+---
+
+### 4.5 Copy
 
 User-facing copy must use:
 
-* plain first-person English
-* concise language
-* commas instead of em-dashes
-* INR for monetary values
+- plain first-person English
+- commas instead of em-dashes
+- INR everywhere
+- no fabricated statistics
 
-Never use:
+Never use these terms in user-facing text:
 
-* “OS”
-* “portal”
-* fabricated statistics
-* unsupported claims
-* unnecessary technical terminology
-
-### Rule 6 — Milestone Gates
-
-Do not begin the next milestone until the current milestone passes its exit criteria.
-
-### Rule 7 — Tenant Isolation
-
-Every Agency-owned record must be tenant-scoped through the Workspace.
-
-Supabase RLS is mandatory.
-
-Cross-tenant reads and writes must be covered by automated tests.
-
-### Rule 8 — Webhooks
-
-All payment and messaging webhooks must be:
-
-* signature-verified
-* replay-protected
-* idempotent
-* auditable
-* safe to retry
-
-### Rule 9 — Background Jobs
-
-Scheduled work must use Inngest.
-
-Never schedule reminder or delayed notification work directly from request handlers.
-
-### Rule 10 — Evidence Over Claims
-
-Where product behavior matters, demonstrate it through:
-
-* automated tests
-* recorded walkthroughs
-* measurable outputs
-* audit events
-
-Do not claim an acceptance criterion passes without evidence.
+- "portal"
+- "OS"
 
 ---
 
-# 6. CANONICAL TECH STACK
+### 4.6 Milestones
 
-Do not change these decisions without a recorded justification.
+Do not move to the next milestone until the current milestone passes its
+defined exit criteria.
 
-### Application
+---
 
-* Next.js
-* App Router
-* TypeScript
-* Tailwind CSS
-* shadcn/ui
-* Vercel
+## 5. CANONICAL TECHNICAL DECISIONS
 
-### Backend / Data
+These decisions should not be changed casually.
+
+A major change requires recorded justification and appropriate founder
+approval.
+
+### Frontend
+
+Next.js App Router
+
+TypeScript
+
+Tailwind CSS
+
+shadcn/ui
+
+Deployment: Vercel
+
+### Database / Auth / Storage
 
 Supabase:
 
-* PostgreSQL
-* Auth
-* Storage
-* Row Level Security
+- PostgreSQL
+- Auth
+- Storage
+- Row Level Security
 
-Supabase Auth is for **Agency users only**.
+Auth is for Agency users only.
 
-### Background Jobs
+RLS is mandatory for tenant isolation.
+
+### Background jobs
 
 Inngest.
 
-Required for:
+Use Inngest for:
 
-* reminder ladder
-* scheduled notifications
-* delayed jobs
-* retryable background processing
+- reminder scheduling
+- delayed notifications
+- scheduled sends
+- background workflows
+
+Never schedule business-critical delayed work directly from request handlers.
 
 ### Payments
 
 Razorpay:
 
-* payment links
-* UPI
-* card payments
-* webhooks as payment source of truth
+- payment links
+- UPI
+- cards
+- webhooks
 
-Manual payments are first-class:
+Razorpay webhooks are the source of truth for gateway payments.
 
-* NEFT
-* RTGS
-* bank transfer
-* TDS-adjusted payments
-* provisional payment events
+Manual payments must support:
 
-### Messaging
+- NEFT
+- RTGS
+- bank transfer
+- TDS-adjusted payments
 
-WhatsApp Cloud API directly through Meta.
+### WhatsApp
 
-Email fallback:
+Meta WhatsApp Cloud API directly.
 
-* Resend
+Initial templates:
+
+- `deliverable_ready`
+- `approval_confirmed`
+- `invoice`
+- `reminder_gentle`
+- `reminder_firm`
+- `reminder_final`
+- `payment_received`
+
+Email fallback through Resend when:
+
+- WhatsApp is unavailable
+- template delivery fails
+- Client has no WhatsApp path
 
 ### PDF
 
-Server-rendered invoices and timeline exports using:
+Server-rendered PDFs.
 
-* react-pdf
-* or another server-compatible PDF renderer approved by Architecture
+Use react-pdf or an equivalent implementation approved by Architecture.
 
 ### Observability
 
-* Sentry
-* PostHog
+Sentry + PostHog.
 
-A message-delivery view is mandatory because WhatsApp template failures are expected to be a major support concern.
+A message-delivery view is required because WhatsApp delivery and template
+failures are operationally important.
 
 ### Testing
 
-* Vitest
-* Playwright
+Vitest for:
 
-Mandatory E2E flows:
+- invoice calculations
+- GST calculations
+- TDS reconciliation
+- invoice numbering
+- state transitions
+- business logic
 
-1. Client magic link → view → approve
-2. Razorpay webhook → paid
+Playwright E2E for the two critical flows:
 
----
-
-# 7. CANONICAL TERMINOLOGY
-
-Use these terms consistently across code, documentation, database schemas, API contracts, UX and tests.
-
-| Concept                     | Canonical term |
-| --------------------------- | -------------- |
-| Agency tenant               | Workspace      |
-| Agency customer             | Client         |
-| Person at client            | Contact        |
-| Work unit                   | Deliverable    |
-| Uploaded iteration          | Version        |
-| Client acceptance           | Approval       |
-| Billing document            | Invoice        |
-| Money received              | Payment        |
-| Automated collection action | Reminder       |
-| Financial status view       | Pipeline       |
-| Client access mechanism     | Magic link     |
-
-Do not introduce alternate names such as:
-
-* Organization
-* Account
-* Customer
-* Job
-* Task
-* Submission
-* Customer portal
-* Client portal
-
-unless a specific technical integration requires the distinction and it is documented.
+1. Client magic-link view → Approve
+2. Razorpay webhook → Paid
 
 ---
 
-# 8. INITIAL DOCUMENTATION BOOTSTRAP
+## 6. MONEY DOMAIN RULES
 
-Before writing application code, create:
+Financial calculations must be implemented as deterministic domain logic
+where practical.
 
-```text
-docs/
-├── 00-PRODUCT-VISION.md
-├── 02-ICP-AND-PERSONAS.md
-├── 06-PRODUCT-ROADMAP.md
-├── 08-USER-FLOWS.md
-├── 09-UX-UI-SPECIFICATION.md
-├── 10-ARCHITECTURE.md
-├── 12-DATABASE.md
-├── 13-API-SPECIFICATION.md
-├── 15-SECURITY.md
-├── 16-TESTING-STRATEGY.md
-└── 17-DEPLOYMENT.md
-```
-
-Create:
-
-```text
-agents/
-├── ORCHESTRATOR.md
-├── PRODUCT/
-│   └── AGENT.md
-├── ARCHITECTURE/
-│   └── AGENT.md
-├── FRONTEND/
-│   └── AGENT.md
-├── BACKEND/
-│   └── AGENT.md
-├── QA/
-│   └── AGENT.md
-├── SECURITY/
-│   └── AGENT.md
-├── DEVOPS/
-│   └── AGENT.md
-├── DOCUMENTATION/
-│   └── AGENT.md
-└── REVIEW/
-    └── AGENT.md
-```
-
----
-
-# 9. REQUIRED DOCUMENT CONTENT
-
-## 9.1 `docs/00-PRODUCT-VISION.md`
-
-Condense:
-
-* product purpose
-* target customer
-* two-user model
-* connected approval → invoice → payment loop
-* Money Pipeline
-* audit trail
-* India-first positioning
-* hard product constraints
-* V1 exclusions
-
-Keep it implementation-oriented.
-
----
-
-## 9.2 `docs/02-ICP-AND-PERSONAS.md`
-
-Document exactly three personas.
-
-### Arjun
-
-Agency founder.
-
-Role:
-
-* buyer
-* administrator
-* primary user
-
-Needs:
-
-* see stuck money
-* reduce manual chasing
-* create deliverables
-* manage clients
-* issue invoices
-* reconcile payments
-* maintain proof of approval
-
-### Rahul
-
-SMB client contact.
-
-Characteristics:
-
-* WhatsApp-native
-* primarily mobile
-* taps links
-* approves work
-* requests changes
-* pays by UPI
-
-He must not create an account.
-
-### Brand Accounts Team
-
-Large-brand finance/accounts contact.
-
-Characteristics:
-
-* pays through NEFT/RTGS
-* requires invoice and often PO information
-* deducts TDS
-* operates on 60–90 day payment cycles
-* will not use a UPI payment link
-
-The document must map every feature to one or more personas.
-
----
-
-# 10. ROADMAP
-
-Create `docs/06-PRODUCT-ROADMAP.md`.
-
-Use these stages:
-
-## V1.0 — MVP
-
-Objective:
-
-Validate the connected approval → invoice → payment workflow.
-
-Scope:
-
-* Agency authentication
-* Workspace setup
-* GST/business setup
-* branding
-* clients and contacts
-* projects
-* deliverables
-* versions
-* magic links
-* approval/change requests
-* append-only event timeline
-* GST invoices
-* Razorpay payment links
-* manual bank payments
-* TDS
-* reminders
-* Money Pipeline
-* WhatsApp
-* email fallback
-* timeline PDF export
-* observability
-* security controls
-* automated tests
-
-Exit criteria:
-
-All eight PRD acceptance criteria pass through tests or recorded walkthroughs.
-
-Exclusions:
-
-All PRD exclusions remain walls.
-
-## V1.1 — Private Beta Iteration
-
-Objective:
-
-Use controlled customer feedback to identify friction, reliability issues and missing workflow details.
-
-Scope:
-
-Only fixes and explicitly approved changes supported by evidence from private-beta usage.
-
-Exit criteria:
-
-Documented beta feedback, prioritized fixes, stable critical flows and an explicit decision to proceed.
-
-Exclusions:
-
-No speculative feature expansion.
-
-## V1.5 — Paid Beta
-
-Objective:
-
-Test willingness to pay.
-
-Founding plan:
-
-**₹299/month**
-
-Scope:
-
-Validated V1.1 functionality plus only explicitly approved paid-beta improvements.
-
-Exit criteria:
-
-Paid beta operating successfully with documented customer feedback and retention/payment evidence.
-
-## V2.0 — Public Launch
-
-Pricing hypothesis:
-
-* Free
-* ₹699/month
-* ₹1,499/month
-* ₹3,999/month
-
-These are hypotheses, not established pricing facts.
-
-Objective:
-
-Public launch after V1.5 validation.
-
-Exit criteria:
-
-Product, reliability, security, support and pricing decisions are explicitly approved for public launch.
-
----
-
-# 11. USER FLOWS
-
-Create `docs/08-USER-FLOWS.md`.
-
-Document the complete two-sided journey.
-
-## Agency onboarding
-
-```text
-Signup
-→ Business + GST setup
-→ Payment setup
-→ Add Client
-→ Add Contact
-→ Create Project
-→ Create Deliverable
-→ Upload Version
-→ Send Deliverable
-```
-
-Target:
-
-> Agency can reach “deliverable sent” in under 10 minutes.
-
-## Client journey
-
-```text
-WhatsApp / Email
-→ Magic link
-→ View deliverable
-→ Approve OR Request changes
-→ Approval recorded
-→ Invoice generated
-→ Invoice sent in same communication thread
-→ Pay OR view bank details
-→ Reminder ladder
-→ Payment
-→ Paid
-```
-
-Document these edge branches:
-
-### No WhatsApp
-
-Email path.
-
-### Multiple contacts
-
-Up to three Client Contacts.
-
-Any authorized contact may approve.
-
-The approval event must record which Contact approved.
-
-### Partial payment
-
-Invoice remains outstanding for the unpaid balance.
-
-Payment events must preserve:
-
-* gross
-* TDS
-* net received
-* remaining balance
-
-### Provisional payment
-
-Client may submit:
-
-* screenshot
-* UTR/reference
-
-The payment remains provisional until Agency confirmation.
-
-Agency gets a one-tap confirmation action.
-
-### Reminder pause
-
-Agency can pause reminders per invoice.
-
-Pause state must be auditable.
-
-### Dispute
-
-Agency can export the Deliverable timeline as PDF.
-
-The export must show relevant:
-
-* versions
-* sends
-* views
-* change requests
-* approvals
-* invoice events
-* payment events
-
----
-
-# 12. UX / UI SPECIFICATION
-
-Create `docs/09-UX-UI-SPECIFICATION.md`.
-
-The design system is:
-
-**Premium, trustworthy, financial, clear.**
-
-Do not use a saffron-green brand palette.
-
-Use semantic tokens.
-
-## Light theme
-
-```text
-primary: #4F46E5
-primary-hover: #4338CA
-success: #10B981
-background: #F8FAFC
-surface: #FFFFFF
-text: #0F172A
-muted: #64748B
-border: #E2E8F0
-```
-
-## Dark theme
-
-```text
-primary: #6366F1
-success: #34D399
-background: #0B1120
-surface: #111827
-elevated: #1E293B
-text: #F8FAFC
-muted: #94A3B8
-border: #334155
-```
-
-## Agency surface
-
-The Dashboard must put **Money Pipeline front and center**.
-
-Pipeline states:
-
-* Approval pending
-* Invoiced
-* Overdue
-* Paid
-
-Include two primary lists:
-
-### Waiting on approval
-
-Show:
-
-* Client
-* Deliverable
-* amount
-* days elapsed
-* viewed-at timestamp
-
-### Waiting on payment
-
-Show:
-
-* Client
-* Invoice
-* amount outstanding
-* aging bucket
-* last reminder
-* next reminder
-* payment status
-
-## Client surface
-
-Magic-link pages must be:
-
-* mobile-first
-* fast on mid-range Android devices
-* usable over 4G
-* reliable inside WhatsApp's in-app browser
-* branded to the Agency
-
-Critical actions:
-
-* maximum two taps to approve
-* maximum two taps to start payment
-
-Do not introduce unnecessary navigation.
-
----
-
-# 13. ARCHITECTURE
-
-Create `docs/10-ARCHITECTURE.md`.
-
-The architecture must cover:
-
-* Next.js App Router
-* TypeScript
-* Supabase
-* RLS
-* Storage
-* Inngest
-* Razorpay
-* Meta WhatsApp Cloud API
-* Resend
-* PDF rendering
-* Sentry
-* PostHog
-* Vercel
-* webhook processing
-* idempotency
-* retry strategy
-* public magic-link routes
-* Agency-authenticated routes
-* tenant boundaries
-
-Clearly separate:
-
-### Agency surface
-
-Authenticated.
-
-### Client surface
-
-Unauthenticated except for signed magic-link context.
-
-The Client surface must never depend on Agency Auth.
-
----
-
-# 14. DATABASE
-
-Create `docs/12-DATABASE.md`.
-
-The minimum schema must include:
-
-```text
-workspaces
-users
-clients
-client_contacts
-projects
-deliverables
-deliverable_versions
-deliverable_events
-invoices
-invoice_line_items
-payments
-reminders
-message_log
-magic_link_tokens
-```
-
-Additional tables are allowed only when required by the PRD or an explicitly recorded scope decision.
-
-Requirements:
-
-* Workspace ownership
-* tenant isolation
-* foreign keys
-* indexes
-* unique constraints
-* financial-year invoice numbering
-* immutable event records
-* payment reconciliation
-* TDS
-* webhook idempotency
-* timestamps
-* audit metadata
-
-`deliverable_events` is append-only.
-
-No normal application workflow may update or delete historical events.
-
----
-
-# 15. API SPECIFICATION
-
-Create `docs/13-API-SPECIFICATION.md`.
-
-API contracts must be defined **before frontend/backend integration**.
-
-Every contract must specify:
-
-* HTTP method
-* version
-* route
-* authentication model
-* request schema
-* response schema
-* errors
-* authorization
-* idempotency behavior where applicable
-
-Version APIs explicitly.
-
-Webhook contracts must document:
-
-* signature verification
-* replay protection
-* idempotency
-* retry behavior
-* event handling
-* failure behavior
-
----
-
-# 16. SECURITY
-
-Create `docs/15-SECURITY.md`.
-
-Mandatory controls:
-
-### Tenant isolation
-
-* RLS on all tenant tables
-* cross-tenant read tests
-* cross-tenant write tests
-
-### Magic links
-
-* signed
-* expiring
-* scoped to one Client
-* revocable
-* rate-limited
-* protected against replay
-* protected against token enumeration
-* no sensitive data encoded directly in tokens
-
-### Webhooks
-
-Razorpay and Meta:
-
-* signature verification
-* timestamp/replay protection where supported
-* idempotency
-* safe retry behavior
-
-### Public endpoints
-
-Apply rate limiting.
-
-### Privacy
-
-DPDP-aligned posture:
-
-* collect minimal Client PII
-* define deletion path
-* do not put PII in logs
-* restrict observability data
-* document retention
-
-### Payments
-
-PCI-sensitive payment data remains with Razorpay.
-
-Never store raw card data.
-
----
-
-# 17. TESTING STRATEGY
-
-Create `docs/16-TESTING-STRATEGY.md`.
-
-Map PRD acceptance criteria to tests.
-
-## Unit tests
+Before UI work depends on money calculations, the underlying domain logic
+must exist and be tested.
 
 At minimum:
 
-### Invoice math
+- GST
+- CGST
+- SGST
+- IGST
+- TDS
+- invoice totals
+- received amount
+- outstanding amount
+- invoice numbering
 
-* taxable values
-* CGST
-* SGST
-* IGST
-* rounding
-* totals
-* TDS
-* net received
-* outstanding balance
-* financial-year numbering
+Do not duplicate financial calculations independently across frontend and
+backend.
 
-### State transitions
+The server/domain implementation is authoritative.
 
-Test valid and invalid Deliverable transitions.
+---
 
-### Event log
+## 7. SECURITY BASELINE
 
-Verify every state transition creates the expected immutable event.
+Security is a product requirement, not a later optimization.
 
-### Payments
+Implement and verify:
 
-Test:
+- Supabase RLS
+- tenant isolation
+- authorization
+- magic-link security
+- token expiry
+- token revocation
+- single-client token scope
+- webhook signature verification
+- webhook replay protection
+- idempotent webhooks
+- rate limiting on public endpoints
+- input validation
+- secret management
+- minimal Client PII
+- no PII in logs
+- deletion path for Client data
 
-* Razorpay payment
-* manual bank payment
-* provisional payment
-* TDS-adjusted payment
-* partial payment
-* final payment
+PCI-sensitive payment handling remains with Razorpay.
 
-## E2E
+Never commit:
 
-Critical path A:
+- API keys
+- access tokens
+- private credentials
+- production secrets
+- database passwords
 
-```text
-Client magic link
-→ view
-→ approve
-→ approval event
-→ invoice
-```
+---
 
-Critical path B:
+## 8. API CONTRACT RULE
 
-```text
+API contracts must be defined and frozen before Frontend and Backend
+implementation are allowed to diverge into parallel work.
+
+Use typed contracts.
+
+Preferred location:
+
+`lib/contracts/`
+
+Contracts should be:
+
+- typed
+- versioned where necessary
+- validated
+- shared between API consumers and implementations
+
+After an API contract is frozen:
+
+- Backend implements against it
+- Frontend implements against it
+- QA tests against it
+
+A contract change after implementation begins requires ORCHESTRATOR
+coordination.
+
+---
+
+## 9. WEBHOOK RULES
+
+All external webhooks must be:
+
+- signature verified
+- idempotent
+- replay protected where applicable
+- logged safely
+- associated with the correct Workspace
+- safe to retry
+
+Never treat a client-side payment success screen as the authoritative
+payment state.
+
+For Razorpay:
+
 Razorpay webhook
-→ verified
+→ verified event
 → idempotent processing
-→ payment recorded
-→ invoice paid
-→ Pipeline updated
-```
-
-These flows must never be knowingly broken.
+→ Payment state update
+→ notification
+→ audit event
 
 ---
 
-# 18. DEPLOYMENT
+## 10. NOTIFICATION RULE
 
-Create `docs/17-DEPLOYMENT.md`.
+Every important notification path must have a fallback.
 
-Deployment stack:
+Primary:
 
-* Vercel
-* Supabase
-* Inngest
-* GitHub Actions
+WhatsApp
 
-CI must run:
+Fallback:
 
-```text
-lint
-→ typecheck
-→ unit tests
-→ E2E tests
-```
+Email
 
-Use:
+The system must record message delivery state.
 
-* preview deployments
-* production deployment
-* Supabase CLI migrations
-* environment-variable documentation
-* deployment rollback procedure
+At minimum, the message log should distinguish relevant states such as:
 
-Never commit secrets.
+- queued
+- sent
+- delivered
+- failed
+- fallback_sent
 
-Document required credentials and configuration without committing their values.
+Do not silently assume that a notification was delivered.
 
 ---
 
-# 19. AGENT SYSTEM
+## 11. CLIENT EXPERIENCE RULES
 
-Create the following agents:
+The Client experience must be:
 
-```text
-ORCHESTRATOR
-PRODUCT
-ARCHITECTURE
-FRONTEND
-BACKEND
-QA
-SECURITY
-DEVOPS
-DOCUMENTATION
-REVIEW
-```
+- zero-login
+- mobile-first
+- fast
+- branded by the Agency
+- usable inside WhatsApp's in-app browser
+- usable on mid-range Android devices
+- simple enough for approval without onboarding
 
-## ORCHESTRATOR
+Target:
 
-Only the Orchestrator coordinates agents.
+- maximum two taps to approve
+- maximum two taps to pay
 
-Responsibilities:
-
-* read canonical requirements
-* assign work
-* enforce milestone order
-* prevent scope drift
-* resolve conflicts
-* require evidence
-* maintain milestone status
-* trigger reviews
-* ensure documentation stays current
-
-No other agent may independently redefine product scope.
-
-## PRODUCT
-
-Owns:
-
-* requirements
-* acceptance criteria interpretation
-* product decisions
-* personas
-* user flows
-* scope boundaries
-
-Must read:
-
-* `CLAUDE.md`
-* `docs/planning/05-MVP-PRD.md`
-* product vision
-* personas
-* roadmap
-
-## ARCHITECTURE
-
-Owns:
-
-* system design
-* data boundaries
-* integrations
-* schema design
-* API architecture
-* technical tradeoffs
-
-Must read the PRD and product documentation before decisions.
-
-## FRONTEND
-
-Owns:
-
-* Agency UI
-* Client magic-link UI
-* components
-* accessibility
-* responsive behavior
-* loading/error states
-
-Must not invent product behavior.
-
-## BACKEND
-
-Owns:
-
-* business logic
-* database access
-* state transitions
-* event logging
-* invoices
-* payments
-* reminders
-* messaging
-* webhooks
-
-Must preserve all security and idempotency requirements.
-
-## QA
-
-Owns:
-
-* test plans
-* unit tests
-* integration tests
-* E2E tests
-* acceptance-criteria evidence
-* regression testing
-
-## SECURITY
-
-Owns review of:
-
-* authentication
-* authorization
-* RLS
-* tenant isolation
-* magic links
-* public endpoints
-* webhooks
-* payments
-* secrets
-* logging
-* privacy
-
-Security review is mandatory before milestone completion.
-
-## DEVOPS
-
-Owns:
-
-* CI
-* deployment
-* environment configuration
-* migrations
-* observability
-* rollback
-* production readiness
-
-## DOCUMENTATION
-
-Owns:
-
-* canonical docs
-* terminology consistency
-* architecture records
-* scope decisions
-* milestone records
-* implementation documentation
-
-## REVIEW
-
-Final product/engineering review.
-
-REVIEW must flag:
-
-* any unrequested feature
-* any client-login surface
-* any scope expansion
-* any violation of canonical terminology
-* any security gap
-* any missing acceptance evidence
-* any undocumented architecture change
-* any divergence from the PRD
-
-Any violation is:
-
-**CHANGES REQUIRED**
+Do not add unnecessary Client navigation, account settings, dashboards, or
+other portal-like surfaces.
 
 ---
 
-# 20. REQUIRED EXECUTION ORDER
+## 12. AGENCY EXPERIENCE RULES
 
-No implementation work may bypass this sequence:
+The Agency application must make the Money Pipeline central.
 
-```text
-Requirements
-    ↓
-Architecture
-    ↓
-Schema review
-    ↓
-API contracts
-    ↓
-UX specification
-    ↓
-Implementation
-    ↓
-Tests
-    ↓
-QA
-    ↓
-Security review
-    ↓
-REVIEW
-    ↓
-Documentation update
-    ↓
-Milestone exit
-```
+The dashboard must make it easy to distinguish:
 
-The Orchestrator must enforce this order.
+### Approval pending
+
+Work waiting for Client approval.
+
+Show useful context such as:
+
+- days elapsed
+- viewed-at timestamp
+
+### Payment pending
+
+Approved work that has been invoiced but not paid.
+
+Show aging buckets.
+
+### Paid
+
+Completed payment.
+
+The Agency must be able to understand where money is stuck without manually
+searching through conversations.
 
 ---
 
-# 21. V1.0 BUILD PLAN
+## 13. STATE AND AUDIT RULES
 
-Nominal duration: **5 weeks**.
+Important business state changes must produce append-only events.
 
-## Week 1 — Foundation
+Examples:
 
-Build:
+- deliverable sent
+- deliverable viewed
+- changes requested
+- deliverable approved
+- invoice generated
+- reminder sent
+- payment initiated
+- payment received
+- manual payment recorded
+- TDS recorded
 
-* repository scaffold
-* Next.js
-* TypeScript
-* Tailwind
-* shadcn/ui
-* Supabase
-* Agency authentication
-* Workspace
-* business/GST setup
-* Clients
-* branding
-* initial database migrations
-* initial RLS
-* deployment pipeline
+Events must contain sufficient information to reconstruct the relevant
+timeline.
 
-### Founder action required immediately
-
-The founder must start:
-
-1. Meta Business verification
-2. Razorpay KYC
-
-These have external lead times and can block P0.5/payment testing.
-
-Do not wait until Week 5 to start them.
-
-### Week 1 exit
-
-Foundation is deployed, tenant isolation is tested, authentication works, and external onboarding processes have been started.
+Never silently mutate the audit history to hide a previous state.
 
 ---
 
-## Week 2 — Deliverables
+## 14. DATABASE RULES
 
-Build:
+All tenant-owned tables require appropriate RLS.
 
-* Projects
-* Deliverables
-* Versions
-* magic links
-* Client mobile view
-* view events
-* approval
-* request changes
-* append-only event timeline
+Expected core entities include:
 
-Primary critical path:
+- workspaces
+- users
+- clients
+- client_contacts
+- projects
+- deliverables
+- deliverable_versions
+- deliverable_events
+- invoices
+- invoice_line_items
+- payments
+- reminders
+- message_log
+- magic_link_tokens
 
-```text
-send
-→ magic link
-→ view
-→ approve
-```
+Schema changes require:
 
----
+1. Architecture review
+2. Security/RLS review
+3. Migration
+4. Tests
 
-## Week 3 — Money
-
-Build:
-
-* invoice engine
-* GST calculations
-* invoice numbering
-* invoice PDF
-* Razorpay payment links
-* Razorpay webhooks
-* manual bank payments
-* TDS
-* partial payments
-* payment reconciliation
-
-GST math must be unit-tested before integration.
+Never apply an unreviewed destructive migration to tenant data.
 
 ---
 
-## Week 4 — Collection
+## 15. DEVELOPMENT WORKFLOW
 
-Build:
+Use vertical slices whenever practical.
 
-* Inngest reminder ladder
-* D3 reminder
-* D7 reminder
-* D14 reminder
-* per-invoice reminder pause
-* Money Pipeline
-* aging buckets
-* email fallback
-* timeline PDF export
-* message delivery view
+Preferred flow:
 
----
+requirements
+→ architecture
+→ schema
+→ API contract
+→ UX
+→ implementation
+→ tests
+→ QA
+→ security
+→ review
+→ documentation
 
-## Week 5 — Messaging and Beta Readiness
+After the API contract is frozen:
 
-Build:
+Frontend and Backend may work in parallel.
 
-* WhatsApp templates
-* interactive buttons
-* notification fallbacks
-* polish
-* performance improvements
-* accessibility fixes
-* E2E stabilization
-* beta onboarding flow
+QA should begin authoring appropriate tests before implementation is
+complete.
 
-If Meta approval has not landed:
-
-> Launch with email-only notification fallback.
-
-This is an accepted launch state, provided the rest of the V1 acceptance criteria pass.
+Security should review high-risk architecture early rather than waiting
+until the end.
 
 ---
 
-# 22. MILESTONE REPORTING
+## 16. AGENT OPERATING MODEL
 
-Every milestone report must use exactly this structure:
+Munder Difflin provides the runtime environment.
 
-## Files created/modified
+Michael is the runtime-level manager.
 
-List paths.
+The Zaya ORCHESTRATOR is the project coordination authority.
 
-## Scope changes
+Only ORCHESTRATOR coordinates Zaya project work.
 
-State:
+Specialist agents must not:
 
-`None`
+- change product scope
+- assign work to other agents
+- override the PRD
+- bypass security gates
+- bypass review gates
+- silently redefine requirements
 
-unless an explicit scope decision exists.
+Specialist responsibilities are defined in:
 
-If scope changed, provide:
+`agents/*.md`
 
-* decision
-* reason
-* approver
-* affected docs
-* affected implementation
+The detailed orchestration policy is defined in:
 
-## Acceptance criteria status
+`agents/ORCHESTRATOR.md`
 
-For each criterion:
+The Munder Difflin operating model is defined in:
 
-* PASS
-* FAIL
-* BLOCKED
-
-Include evidence.
-
-## Risks
-
-List only active risks.
-
-Include:
-
-* severity
-* impact
-* mitigation
-* owner
-
-## Recommended next action
-
-One concrete next action.
-
-Do not silently move to the next milestone.
+`MUNDER-DIFFLIN.md`
 
 ---
 
-# 23. SCOPE CHANGE PROTOCOL
+## 17. AUTONOMOUS ENGINEERING
 
-Any request that falls outside the PRD must stop implementation.
+Agents should make normal engineering decisions autonomously when those
+decisions:
 
-The agent must:
+- follow the PRD
+- follow CLAUDE.md
+- follow project documentation
+- preserve the existing architecture
+- are reversible
+- do not change product scope
+- do not introduce significant unapproved cost
+- do not require production secrets
+- do not create destructive production changes
 
-1. Identify the requested change.
-2. Explain which PRD boundary it crosses.
-3. Record the proposal in `docs/06-PRODUCT-ROADMAP.md`.
-4. Wait for an explicit scope decision.
-5. Only then implement if approved.
+Do not interrupt the founder for trivial implementation decisions.
 
-No agent may interpret “probably useful” as approval.
+Escalate decisions involving:
 
----
-
-# 24. VALIDATION HYPOTHESIS
-
-Founder validation interviews may run in parallel with development.
-
-The core hypothesis is:
-
-> Approval visibility and approval workflow may be a meaningful part of the path to getting paid faster.
-
-This is a hypothesis.
-
-If founder validation indicates that the hypothesis is wrong:
-
-1. ORCHESTRATOR pauses affected W2+ work.
-2. PRODUCT documents the evidence.
-3. ROADMAP records the scope decision.
-4. Architecture and implementation proceed only after the decision is explicit.
-
-Do not retrofit the product around an unvalidated assumption without recording the decision.
+- product direction
+- material scope changes
+- conflicting requirements
+- major architecture replacement
+- destructive production operations
+- production credentials
+- significant irreversible changes
 
 ---
 
-# 25. CONSISTENCY CHECK
+## 18. SCOPE CHANGE PROTOCOL
 
-Before declaring documentation bootstrap complete, verify:
+If an agent discovers a potentially valuable feature outside the PRD:
 
-* [ ] Every document uses Workspace consistently.
-* [ ] Every document uses Client consistently.
-* [ ] Every document uses Contact consistently.
-* [ ] Every document uses Deliverable consistently.
-* [ ] Every document uses Version consistently.
-* [ ] Every document uses Approval consistently.
-* [ ] Every document uses Invoice consistently.
-* [ ] Every document uses Payment consistently.
-* [ ] Every document uses Reminder consistently.
-* [ ] Every document uses Pipeline consistently.
-* [ ] Every document uses Magic link consistently.
-* [ ] No user-facing text uses “OS”.
-* [ ] No user-facing text uses “portal”.
-* [ ] No Client login exists in any design.
-* [ ] No unapproved feature appears in scope.
-* [ ] All APIs are versioned.
-* [ ] All webhooks are idempotent.
-* [ ] All tenant tables have RLS.
-* [ ] Critical E2E flows are defined.
-* [ ] Security review requirements are documented.
-* [ ] Deployment requirements are documented.
+DO NOT BUILD IT.
+
+Instead:
+
+1. Report it to ORCHESTRATOR.
+2. ORCHESTRATOR determines whether it is truly outside scope.
+3. If outside scope, request founder decision.
+4. If approved, record an SD entry in:
+   `docs/06-PRODUCT-ROADMAP.md §5`
+5. Update affected documentation.
+6. Only then schedule implementation.
+
+Silence is not approval.
 
 ---
 
-# 26. BOOTSTRAP EXIT REPORT
+## 19. DOCUMENTATION RULE
 
-After completing documentation bootstrap, report:
+Documentation must describe what the product actually does.
 
-### Files created
+When implementation changes behavior:
 
-Complete list of created files.
+- update the affected product documentation
+- update API documentation
+- update database documentation when schema changes
+- update user flows when behavior changes
+- update testing strategy when requirements change
+- record approved scope changes
 
-### Open questions
-
-Only unresolved questions that genuinely block implementation or require a product decision.
-
-### V1 build plan
-
-Summarize the five-week plan and identify the immediate next action.
-
-Do not begin application implementation until the documentation bootstrap exit criteria pass.
+Never modify documentation merely to make an unauthorized implementation
+appear intentional.
 
 ---
 
-# 27. DEFINITION OF DONE
+## 20. TESTING AND DEFINITION OF DONE
 
-A feature is not done because its UI exists.
+Code is not complete merely because it compiles.
 
-A feature is done only when:
+A feature is complete only when:
 
-* requirements are understood
-* architecture is approved
-* schema/API contracts are defined where applicable
-* UX behavior is specified
-* implementation exists
-* tests exist
-* acceptance criteria pass
-* security implications are reviewed
-* observability is adequate
-* documentation is updated
-* REVIEW passes
-* no scope violation exists
+- implementation works
+- acceptance criteria pass
+- relevant tests pass
+- security requirements are satisfied
+- no unauthorized scope has been added
+- review passes
+- affected documentation is updated
+- repository is left in a clean state
 
-**No shortcuts. No silent assumptions. No feature creep.**
+Critical flows must have E2E coverage.
+
+---
+
+## 21. GIT RULES
+
+Agents should:
+
+- make focused commits
+- avoid unrelated changes
+- inspect git status before major operations
+- never commit secrets
+- avoid destructive history rewriting
+- keep commits understandable
+- never claim the approval hypothesis is proven in commit messages
+
+Do not modify unrelated files merely for convenience.
+
+---
+
+## 22. V1.0 BUILD SEQUENCE
+
+### W1
+
+- scaffold
+- CI
+- Supabase
+- Agency auth
+- Workspace
+- GST/business setup
+- branding
+- Clients
+- Contacts
+
+Founder action immediately:
+
+- Meta Business verification
+- Razorpay KYC
+
+These have external lead times.
+
+### W2
+
+- Projects
+- Deliverables
+- Versions
+- Magic-link Client view
+- Approve
+- Request changes
+- append-only event log
+
+### W3
+
+- GST engine
+- invoice generation
+- invoice PDF
+- Razorpay payment links
+- Razorpay webhook
+- manual bank payments
+- TDS recording
+
+GST/money calculations must be unit-tested before dependent UI work.
+
+### W4
+
+- reminder ladder
+- Inngest jobs
+- Money Pipeline
+- email notifications
+- timeline PDF export
+
+### W5
+
+- WhatsApp templates
+- interactive WhatsApp buttons
+- plain-text approval fallback
+- screenshot/UTR provisional payment
+- agency one-tap payment confirmation
+- polish
+- E2E verification
+- beta onboarding
+
+If Meta approval has not landed, email-only is an accepted launch state.
+
+---
+
+## 23. V1.0 EXIT
+
+V1.0 is complete only when all 8 acceptance criteria in:
+
+`docs/planning/05-MVP-PRD.md`
+
+pass.
+
+Evidence must be provided through:
+
+- automated tests
+- E2E tests
+- recorded walkthroughs where appropriate
+
+No milestone may be marked complete based only on "the code appears to
+work."
+
+---
+
+## 24. CONTEXT
+
+Plain invoicing and plain payment reminders are commoditized in India.
+
+Zaya's wedge is the CONNECTED loop:
+
+approval event
+→ automatic invoice
+→ same-thread payment ask
+→ reminders
+→ payment
+→ Money Pipeline
+
+The product should distinguish:
+
+Approval-stuck money
+
+from:
+
+Payment-stuck money.
+
+The Client experience remains zero-login because the product is designed
+around removing friction from the Client side.
+
+Founder validation may run in parallel with development.
+
+If founder validation falsifies the approval hypothesis, ORCHESTRATOR pauses
+dependent work and requests a scope decision.
+
+---
+
+## 25. FINAL PRINCIPLE
+
+Build only what the customer needs.
+
+Prefer the smallest implementation that satisfies the PRD.
+
+Do not confuse speed with skipping verification.
+
+BUILD FAST
+→ VERIFY FAST
+→ FIX FAST
+→ REVIEW
+→ SHIP
+
+Preserve:
+
+- scope
+- security
+- data integrity
+- Client privacy
+- financial correctness
+- acceptance criteria
+- auditability
+
+The founder remains the final authority on product direction and major
+business decisions.
