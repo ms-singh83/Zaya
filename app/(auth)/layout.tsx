@@ -1,0 +1,10 @@
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-bg p-4">
+      <div className="w-full max-w-sm">
+        <p className="mb-8 text-center text-lg font-semibold text-text">Zaya</p>
+        {children}
+      </div>
+    </div>
+  );
+}
